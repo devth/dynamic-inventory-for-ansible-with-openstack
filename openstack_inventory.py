@@ -33,6 +33,8 @@
 # Currently, the name of the network is hardcoded in the global variable
 # OS_NETWORK_NAME. This might be mitigated by another environment variable, but
 # this might not interoperate well.
+# UPDATE (devth): if OS_NETWORK_NAME is set to None,
+# server.networks.itervalues().next()[0] will be used to obtain the IP instead
 #
 ################################################################################
 
@@ -45,7 +47,7 @@ OS_METADATA_KEY = {
 	'host_vars': 'ansible_host_vars'
 }
 
-OS_NETWORK_NAME = 'virtual_infrastructure_network'
+OS_NETWORK_NAME = None
 
 def main(args):
 	credentials = getOsCredentialsFromEnvironment()
@@ -101,10 +103,19 @@ def getAnsibleHostVarsFromServer(novaClient, serverId):
 		return None
 
 def getFloatingIpFromServerForNetwork(server, network):
-	for addr in server.addresses.get(network):
-		if addr.get('OS-EXT-IPS:type') == 'floating':
-			return addr['addr']
-	return None
+    if network:
+        addresses = server.addresses.get(network)
+        if addresses is not None:
+            for addr in addresses:
+                if addr.get('OS-EXT-IPS:type') == 'floating':
+                    return addr['addr']
+    else:
+        # if no network was specified, just grab the first IP address from
+        # networks
+        network, addresses = server.networks.popitem()
+        return addresses[0]
+    return None
+
 
 def addServerToHostGroup(group, floatingIp, inventory):
 	host_group = inventory.get(group, {})
